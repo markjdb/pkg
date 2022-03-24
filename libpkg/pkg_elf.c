@@ -716,6 +716,64 @@ aeabi_parse_arm_attributes(void *data, size_t length)
 #undef MOVE
 }
 
+#ifdef __CheriBSD__
+/*
+ * elf_note_analyse_cheribsd() looks for a second ELF note indicating that
+ * a binary was built for CheriBSD and overwrites OS information relevant for
+ * CheriBSD.
+ */
+static void
+elf_note_analyse_cheribsd(Elf_Data *data, GElf_Ehdr *elfhdr, struct os_info *oi)
+{
+	Elf_Note note;
+	char *src;
+	uint32_t version = 0;
+
+	if (strcmp(oi->name, "FreeBSD") != 0) {
+		/*
+		 * Don't overwrite values if a binary was built for a vendor
+		 * other than FreeBSD.
+		 */
+		return;
+	}
+
+	src = data->d_buf;
+
+	while ((uintptr_t)src < ((uintptr_t)data->d_buf + data->d_size)) {
+		memcpy(&note, src, sizeof(note));
+		src += sizeof(note);
+		if (strncmp((const char *)src, "CheriBSD",
+		    note.n_namesz) == 0) {
+			if (note.n_type == NT_VERSION) {
+				break;
+			}
+		}
+		src += roundup2(note.n_namesz + note.n_descsz, 4);
+	}
+	if ((uintptr_t)src >= ((uintptr_t)data->d_buf + data->d_size)) {
+		return;
+	}
+
+	/* Overwrite a vendor with CheriBSD. */
+	free(oi->name);
+	oi->name = xstrdup(src);
+
+	src += roundup2(note.n_namesz, 4);
+	if (elfhdr->e_ident[EI_DATA] == ELFDATA2MSB)
+		version = be32dec(src);
+	else
+		version = le32dec(src);
+
+	/*
+	 * Overwrite a version with a CheriBSD ABI version.
+	 *
+	 * Note that minor and major versions are left from FreeBSD.
+	 */
+	free(oi->version);
+	xasprintf(&oi->version, "%d", version);
+}
+#endif
+
 static bool
 elf_note_analyse(Elf_Data *data, GElf_Ehdr *elfhdr, struct os_info *oi)
 {
@@ -810,6 +868,9 @@ elf_note_analyse(Elf_Data *data, GElf_Ehdr *elfhdr, struct os_info *oi)
 		xasprintf(&oi->version, "%d", version / 100000);
 	}
 
+#ifdef __CheriBSD__
+	elf_note_analyse_cheribsd(data, elfhdr, oi);
+#endif
 	return (true);
 }
 
