@@ -184,10 +184,11 @@ typedef uintptr_t Wrd;
 #define RNK2VAR(r) (ps->vars + ((r) - ps->rnks))
 
 #define BLK_FILL_BYTES 8
+#define BLK_OFFSET_BYTES (offsetof(Blk, data))
 #define SIZE_OF_BLK (sizeof (Blk) - BLK_FILL_BYTES)
 
 #define PTR2BLK(void_ptr) \
-  ((void_ptr) ? (Blk*)(((char*)(void_ptr)) - SIZE_OF_BLK) : 0)
+  ((void_ptr) ? (Blk*)(((char*)(void_ptr)) - BLK_OFFSET_BYTES) : 0)
 
 #define AVERAGE(a,b) ((b) ? (((double)a) / (double)(b)) : 0.0)
 #define PERCENT(a,b) (100.0 * AVERAGE(a,b))
