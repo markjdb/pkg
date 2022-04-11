@@ -888,6 +888,7 @@ pkg_get_myarch_elfparse(char *dest, size_t sz, struct os_info *oi)
 
 	const char *abi_files[] = {
 		getenv("ABI_FILE"),
+		"/usr/sbin/pkg" PKG_SUFFIX,
 		_PATH_UNAME,
 		_PATH_BSHELL,
 	};
