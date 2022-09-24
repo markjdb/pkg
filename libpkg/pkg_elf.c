@@ -183,6 +183,8 @@ shlib_valid_abi(const char *fpath, GElf_Ehdr *hdr, const char *abi)
 					strlcpy(wordsize, p + 1, MIN((long)sizeof(wordsize), t - p));
 				break;
 			}
+		} else {
+			break;
 		}
 	}
 	/* Invalid ABI line */
