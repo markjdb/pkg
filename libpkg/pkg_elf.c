@@ -723,55 +723,85 @@ aeabi_parse_arm_attributes(void *data, size_t length)
  * a binary was built for CheriBSD and overwrites OS information relevant for
  * CheriBSD.
  */
-static void
+static bool
 elf_note_analyse_cheribsd(Elf_Data *data, GElf_Ehdr *elfhdr, struct os_info *oi)
 {
 	Elf_Note note;
-	char *src;
-	uint32_t version = 0;
-
-	if (strcmp(oi->name, "FreeBSD") != 0) {
-		/*
-		 * Don't overwrite values if a binary was built for a vendor
-		 * other than FreeBSD.
-		 */
-		return;
-	}
+	char *src, *src_version;
+#if defined(NT_CHERI_MORELLO_PURECAP_BENCHMARK_ABI)
+	char *src_benchmarkabi;
+	uint32_t benchmarkabi;
+#endif
+	uint32_t version;
 
 	src = data->d_buf;
+	src_version = NULL;
+#if defined(NT_CHERI_MORELLO_PURECAP_BENCHMARK_ABI)
+	src_benchmarkabi = NULL;
+#endif
 
 	while ((uintptr_t)src < ((uintptr_t)data->d_buf + data->d_size)) {
 		memcpy(&note, src, sizeof(note));
 		src += sizeof(note);
 		if (strncmp((const char *)src, "CheriBSD",
 		    note.n_namesz) == 0) {
-			if (note.n_type == NT_VERSION) {
-				break;
+			if (src_version == NULL && note.n_type ==
+			    NT_VERSION) {
+				src_version = src + roundup2(note.n_namesz, 4);
 			}
 		}
+#if defined(NT_CHERI_MORELLO_PURECAP_BENCHMARK_ABI)
+		if (strncmp ((const char *) src, "CHERI", note.n_namesz) == 0) {
+			if (src_benchmarkabi == NULL && note.n_type ==
+			    NT_CHERI_MORELLO_PURECAP_BENCHMARK_ABI) {
+				src_benchmarkabi = src +
+				    roundup2(note.n_namesz, 4);
+			}
+		}
+#endif
 		src += roundup2(note.n_namesz + note.n_descsz, 4);
 	}
-	if ((uintptr_t)src >= ((uintptr_t)data->d_buf + data->d_size)) {
-		return;
+
+	if (src_version != NULL) {
+		if (strcmp(oi->name, "FreeBSD") == 0) {
+			/* Overwrite a vendor with CheriBSD. */
+			free(oi->name);
+			oi->name = xstrdup("CheriBSD");
+		}
+
+		if (strcmp(oi->name, "CheriBSD") == 0) {
+			if (elfhdr->e_ident[EI_DATA] == ELFDATA2MSB)
+				version = be32dec(src_version);
+			else
+				version = le32dec(src_version);
+
+			/*
+			 * Overwrite a version with a CheriBSD ABI version.
+			 *
+			 * Note that minor and major versions are left from
+			 * FreeBSD.
+			 */
+			free(oi->version);
+			xasprintf(&oi->version, "%d", version);
+		}
 	}
 
-	/* Overwrite a vendor with CheriBSD. */
-	free(oi->name);
-	oi->name = xstrdup(src);
+#if defined(NT_CHERI_MORELLO_PURECAP_BENCHMARK_ABI)
+	if (src_benchmarkabi != NULL) {
+		if (elfhdr->e_ident[EI_DATA] == ELFDATA2MSB)
+			benchmarkabi = be32dec(src_benchmarkabi);
+		else
+			benchmarkabi = le32dec(src_benchmarkabi);
+		if (benchmarkabi != 0 && benchmarkabi != 1) {
+			pkg_emit_error("Invalid NT_CHERI_MORELLO_PURECAP_BENCHMARK_ABI description data: 0x%x.",
+			    benchmarkabi);
+			return (false);
+		}
+		oi->benchmarkabi = benchmarkabi;
+	}
+#endif
 
-	src += roundup2(note.n_namesz, 4);
-	if (elfhdr->e_ident[EI_DATA] == ELFDATA2MSB)
-		version = be32dec(src);
-	else
-		version = le32dec(src);
-
-	/*
-	 * Overwrite a version with a CheriBSD ABI version.
-	 *
-	 * Note that minor and major versions are left from FreeBSD.
-	 */
-	free(oi->version);
-	xasprintf(&oi->version, "%d", version);
+	return (true);
 }
 
 static bool
@@ -809,7 +839,7 @@ elf_note_analyse(Elf_Data *data, GElf_Ehdr *elfhdr, struct os_info *oi)
 		src += roundup2(note.n_namesz + note.n_descsz, 4);
 	}
 	if ((uintptr_t)src >= ((uintptr_t)data->d_buf + data->d_size)) {
-		return (false);
+		goto out;
 	}
 	free(oi->name);
 	if (version_style == 2) {
@@ -868,8 +898,8 @@ elf_note_analyse(Elf_Data *data, GElf_Ehdr *elfhdr, struct os_info *oi)
 		xasprintf(&oi->version, "%d", version / 100000);
 	}
 
-	elf_note_analyse_cheribsd(data, elfhdr, oi);
-	return (true);
+out:
+	return (elf_note_analyse_cheribsd(data, elfhdr, oi));
 }
 
 
@@ -1072,8 +1102,14 @@ pkg_get_myarch_elfparse(char *dest, size_t sz, struct os_info *oi)
 			cheriabi = true;
 		}
 #endif
-		snprintf(dest + strlen(dest), sz - strlen(dest), ":%s:%s%s",
-		    arch, wordsize_corres_str, cheriabi ? ":cheri" : "");
+		snprintf(dest + strlen(dest), sz - strlen(dest), ":%s:%s%s%s",
+		    arch, wordsize_corres_str, cheriabi ? ":cheri" : "",
+#if defined(NT_CHERI_MORELLO_PURECAP_BENCHMARK_ABI)
+		    cheriabi && oi->benchmarkabi ? ":benchmark" : ""
+#else
+		    ""
+#endif
+		    );
 		break;
 	case EM_MIPS:
 		/*

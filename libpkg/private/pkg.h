@@ -34,6 +34,7 @@
 #include <sys/param.h>
 #include <sys/cdefs.h>
 #include <sys/types.h>
+#include <sys/elf_common.h>
 
 #include <archive.h>
 #include <sqlite3.h>
@@ -605,6 +606,9 @@ struct os_info {
 	char *version_major;
 	char *version_minor;
 	char *arch;
+#if defined(NT_CHERI_MORELLO_PURECAP_BENCHMARK_ABI)
+	uint32_t benchmarkabi;
+#endif
 };
 
 int pkg_get_myarch(char *pkgarch, size_t sz, struct os_info *);
