@@ -1097,6 +1097,9 @@ pkg_get_myarch_elfparse(char *dest, size_t sz, struct os_info *oi)
 		    endian_corres_str, abi, fpu);
 		break;
 	case EM_AARCH64:
+#ifndef EF_AARCH64_CHERI_PURECAP
+#define	EF_AARCH64_CHERI_PURECAP	0x00010000
+#endif
 #if defined(EF_AARCH64_CHERI_PURECAP)
 		if (elfhdr.e_flags & EF_AARCH64_CHERI_PURECAP) {
 			cheriabi = true;
