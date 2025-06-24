@@ -233,10 +233,12 @@ packing_append_file_attr(struct packing *pack, const char *filepath,
 	if (uname != NULL && uname[0] != '\0') {
 		archive_entry_set_uname(entry, uname);
 	}
+	archive_entry_set_uid(entry, 0);
 
 	if (gname != NULL && gname[0] != '\0') {
 		archive_entry_set_gname(entry, gname);
 	}
+	archive_entry_set_gid(entry, 0);
 
 	if (fflags > 0)
 		archive_entry_set_fflags(entry, fflags, 0);
