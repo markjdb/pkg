@@ -111,8 +111,7 @@ pkg_jobs_universe_get_remote(struct pkg_jobs_universe *universe,
 	}
 
 	unit = pkghash_get_value(universe->items, uid);
-	if (unit != NULL && unit->pkg->type != PKG_INSTALLED) {
-		/* Search local in a universe chain */
+	if (unit != NULL) {
 		cur = unit;
 		found = NULL;
 		do {
