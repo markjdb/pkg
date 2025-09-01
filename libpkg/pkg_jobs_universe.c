@@ -211,11 +211,9 @@ pkg_jobs_universe_add_pkg(struct pkg_jobs_universe *universe, struct pkg *pkg,
 		pkghash_safe_add(universe->items, pkg->uid, item, NULL);
 		item->inhash = true;
 	}
-
 	DL_APPEND(tmp, item);
 
-	if (seen == NULL)
-		pkghash_safe_add(universe->seen, item->pkg->digest, item, NULL);
+	pkghash_safe_add(universe->seen, item->pkg->digest, item, NULL);
 
 	universe->nitems++;
 
